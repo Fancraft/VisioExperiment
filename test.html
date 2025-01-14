@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Interaction Study</title>
+    <style>
+        .video-container {
+            position: relative;
+            width: 800px;
+            margin: 20px auto;
+        }
+
+        #videoOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+            z-index: 1;
+        }
+
+        .controls {
+            position: relative;
+            z-index: 2; /* Ensure controls are above the overlay */
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .feedback-dot {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: fade-out 1s forwards;
+        }
+
+        @keyframes fade-out {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        #participantInfo {
+            margin: 20px auto;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+     <div id="participantInfo">
+        <input type="text" id="participantId" placeholder="Enter Participant ID">
+        <button onclick="startSession()">Start Session</button>
+    </div>
+
+    <!-- 
+    <div class="video-container" style="display: none;">
+        <video id="videoElement" width="900">
+            <source src="sample.mp4" type="video/mp4">
+        </video>
+        <div id="videoOverlay"></div>
+            -->
+        <div class="video-container" style="display: none;">
+    <video id="videoElement" width="900" controls>
+        <!-- Google Drive video link -->
+        <source src="https://drive.google.com/file/d/1wnI4Lt2Qw_i6LsO30xdVQlRYupGwAvSR/preview" type="video/mp4">
+    </video>
+    <div id="videoOverlay"></div>
+
+        <div class="controls">
+            <button onclick="videoControl('play')">Play/Pause</button>
+            <button onclick="videoControl('restart')">Restart</button>
+            <button onclick="videoControl('slower')">Slower</button>
+            <button onclick="videoControl('faster')">Faster</button>
+        </div>
+    </div>
+
+    <script>
+        let participantId = '';
+        let startTime = null;
+        let clickData = [];
+        
+        // Google Sheets Web App URL (you'll need to replace this)
+        const SHEETS_URL = 'YOUR_GOOGLE_SHEETS_WEB_APP_URL';
+        
+        function startSession() {
+            participantId = document.getElementById('participantId').value;
+            if (!participantId) {
+                alert('Please enter a Participant ID');
+                return;
+            }
+
+            document.querySelector('.video-container').style.display = 'block';
+            document.getElementById('participantInfo').style.display = 'none';
+            startTime = new Date();
+
+            // Initialize video element
+            const video = document.getElementById('videoElement');
+            video.load();
+        }
+
+        // Prevent direct video interaction
+        document.getElementById('videoElement').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('videoElement')) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+
+        // Handle click data collection
+        document.getElementById('videoOverlay').addEventListener('click', (e) => {
+            const video = document.getElementById('videoElement');
+            const rect = e.target.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            // Create feedback dot
+            const dot = document.createElement('div');
+            dot.className = 'feedback-dot';
+            dot.style.left = (e.clientX - rect.left - 10) + 'px';
+            dot.style.top = (e.clientY - rect.top - 10) + 'px';
+            dot.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+            e.target.appendChild(dot);
+
+            // Record data
+            const clickTime = new Date();
+            const timeFromStart = (clickTime - startTime) / 1000;
+
+            const dataPoint = {
+                participantId,
+                timestamp: clickTime.toISOString(),
+                timeFromStart,
+                xRatio: x.toFixed(4),
+                yRatio: y.toFixed(4),
+                videoTime: video.currentTime.toFixed(3),
+                videoSpeed: video.playbackRate
+            };
+
+            clickData.push(dataPoint);
+            sendToSheet(dataPoint);
+        });
+
+        function videoControl(action) {
+            const video = document.getElementById('videoElement');
+
+            switch(action) {
+                case 'play':
+                    if (video.paused) video.play();
+                    else video.pause();
+                    break;
+                case 'restart':
+                    video.currentTime = 0;
+                    video.play();
+                    break;
+                case 'slower':
+                    if (video.playbackRate > 0.25) {
+                        video.playbackRate -= 0.25;
+                    }
+                    break;
+                case 'faster':
+                    if (video.playbackRate < 2) {
+                        video.playbackRate += 0.25;
+                    }
+                    break;
+            }
+        }
+
+        function sendToSheet(data) {
+            fetch(SHEETS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            }).catch(console.error);
+        }
+    </script>
+</body>
+</html>
